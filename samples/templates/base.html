@@ -1,0 +1,20 @@
+<html>
+<title>
+{{title}}
+</title>
+<style>
+body {background-color: grey;
+padding: 5%;
+</style>
+EXAMPLE: <p></p>
+<body>
+{% block middle %}
+{% for element in content %}
+<p> {% for item in element %}
+	{{item}}
+	{% endfor %}
+	</p>
+{% endfor %}
+{% endblock %}
+</body>
+</html>
