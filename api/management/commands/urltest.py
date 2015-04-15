@@ -2,8 +2,16 @@ from api.urls import router
 from django.core.management.base import BaseCommand
 import requests
 import logging
+import threading
+from queue import Queue
+from time import sleep
 
 logger = logging.getLogger('urltest')
+
+def run(master, queue):
+    while not queue.empty():
+        url = queue.get()
+        master.response_handler(url)
 
 
 class Command(BaseCommand):
@@ -25,6 +33,7 @@ class Command(BaseCommand):
         self.accepted_codes = (100, 101, 102, 200, 201, 202, 203, 204, 205, 206, 207,
                           208, 226, 300, 301, 302, 303, 304, 305, 306, 307, 308)
         model_to_check = self.options['model']
+        queue = Queue()
         for registry_element in router.registry:
             viewset_name = registry_element[0]
             if model_to_check != 'all':
@@ -32,10 +41,17 @@ class Command(BaseCommand):
                     continue
             viewset = registry_element[1]
             queryset = viewset.get_queryset(viewset)
-            self.response_handler(base_url, viewset_name)
+            queue.put(base_url+viewset_name)
             for item in queryset:
                 item = "/"+str(item.id)
-                self.response_handler(base_url, viewset_name, item)
+                queue.put(base_url+viewset_name+item)
+        threading.Thread(target=run, args=(self, queue)).start()
+        threading.Thread(target=run, args=(self, queue)).start()
+        threading.Thread(target=run, args=(self, queue)).start()
+        threading.Thread(target=run, args=(self, queue)).start()
+        threading.Thread(target=run, args=(self, queue)).start()
+        while not queue.empty():
+            sleep(1) # every 1 second we are checking if urltesting is finished.
         logger.info("All urls: %s" % self.all_urls)
         logger.info("Broken urls: %s" % self.broken_urls_counter)
         if len(self.broken_urls) > 0:
@@ -109,7 +125,7 @@ class Command(BaseCommand):
                             )
         parser.add_argument('-m', '--model',
                             dest='model',
-                            default=['all'],
+                            default='all',
                             help="Possible values: %s" % self.create_model_list())
 
     def handle(self, *args, **options):
